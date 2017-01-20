@@ -1,1 +1,2 @@
 cmake -DCMAKE_GENERATOR_PLATFORM=x64 ../mendeley
+VSINSTALLDIR=C:/Program Files (x86)/Microsoft Visual Studio 14.0
