@@ -56,7 +56,7 @@ deps = {
   # Linux syscall support.
   "src/src/third_party/lss":
     "https://chromium.googlesource.com/linux-syscall-support/" +
-      "@3f6478ac95edf86cd3da300c2c0d34a438f5dbeb",
+      "@c555f533313986d29c827eb59c7bd99fd37b3ec4",
 }
 
 hooks = [
@@ -68,6 +68,13 @@ hooks = [
                "src/src/tools/gyp/gyp_main.py",
                "--no-circular-check",
                "src/src/client/windows/breakpad_client.gyp"],
+  },
+  {
+    # XXX: this and above should all be wired into build/all.gyp ?
+    "action": ["python",
+               "src/src/tools/gyp/gyp_main.py",
+               "--no-circular-check",
+               "src/src/tools/windows/tools_windows.gyp"],
   },
   {
     # Keep the manifest up to date.

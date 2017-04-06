@@ -1202,6 +1202,8 @@ MinidumpMemoryRegion::MinidumpMemoryRegion(Minidump* minidump)
     : MinidumpObject(minidump),
       descriptor_(NULL),
       memory_(NULL) {
+  hexdump_width_ = minidump_ ? minidump_->HexdumpMode() : 0;
+  hexdump_ = hexdump_width_ != 0;
 }
 
 
@@ -1360,16 +1362,74 @@ void MinidumpMemoryRegion::Print() const {
 
   const uint8_t* memory = GetMemory();
   if (memory) {
-    printf("0x");
-    for (unsigned int byte_index = 0;
-         byte_index < descriptor_->memory.data_size;
-         byte_index++) {
-      printf("%02x", memory[byte_index]);
+    if (hexdump_) {
+      // Pretty hexdump view.
+      for (unsigned int byte_index = 0;
+           byte_index < descriptor_->memory.data_size;
+           byte_index += hexdump_width_) {
+        // In case the memory won't fill a whole line.
+        unsigned int num_bytes = std::min(
+            descriptor_->memory.data_size - byte_index, hexdump_width_);
+
+        // Display the leading address.
+        printf("%08x  ", byte_index);
+
+        // Show the bytes in hex.
+        for (unsigned int i = 0; i < hexdump_width_; ++i) {
+          if (i < num_bytes) {
+            // Show the single byte of memory in hex.
+            printf("%02x ", memory[byte_index + i]);
+          } else {
+            // If this line doesn't fill up, pad it out.
+            printf("   ");
+          }
+
+          // Insert a space every 8 bytes to make it more readable.
+          if (((i + 1) % 8) == 0) {
+            printf(" ");
+          }
+        }
+
+        // Decode the line as ASCII.
+        printf("|");
+        for (unsigned int i = 0; i < hexdump_width_; ++i) {
+          if (i < num_bytes) {
+            uint8_t byte = memory[byte_index + i];
+            printf("%c", isprint(byte) ? byte : '.');
+          } else {
+            // If this line doesn't fill up, pad it out.
+            printf(" ");
+          }
+        }
+        printf("|\n");
+      }
+    } else {
+      // Ugly raw string view.
+      printf("0x");
+      for (unsigned int i = 0;
+           i < descriptor_->memory.data_size;
+           i++) {
+        printf("%02x", memory[i]);
+      }
+      printf("\n");
     }
-    printf("\n");
   } else {
     printf("No memory\n");
   }
+}
+
+
+void MinidumpMemoryRegion::SetPrintMode(bool hexdump,
+                                        unsigned int hexdump_width) {
+  // Require the width to be a multiple of 8 bytes.
+  if (hexdump_width == 0 || (hexdump_width % 8) != 0) {
+    BPLOG(ERROR) << "MinidumpMemoryRegion print hexdump_width must be "
+                    "multiple of 8, not " << hexdump_width;
+    return;
+  }
+
+  hexdump_ = hexdump;
+  hexdump_width_ = hexdump_width;
 }
 
 
@@ -1988,7 +2048,9 @@ string MinidumpModule::debug_file() const {
           // GetMiscRecord already byte-swapped the data[] field if it contains
           // UTF-16, so pass false as the swap argument.
           scoped_ptr<string> new_file(UTF16ToUTF8(string_utf16, false));
-          file = *new_file;
+          if (new_file.get() != nullptr) {
+            file = *new_file;
+          }
         }
       }
     }
@@ -2189,8 +2251,9 @@ const uint8_t* MinidumpModule::GetCVRecord(uint32_t* size) {
     }
 
     if (signature == MD_CVINFOPDB70_SIGNATURE) {
-      // Now that the structure type is known, recheck the size.
-      if (MDCVInfoPDB70_minsize > module_.cv_record.data_size) {
+      // Now that the structure type is known, recheck the size,
+      // ensuring at least one byte for the null terminator.
+      if (MDCVInfoPDB70_minsize + 1 > module_.cv_record.data_size) {
         BPLOG(ERROR) << "MinidumpModule CodeView7 record size mismatch, " <<
                         MDCVInfoPDB70_minsize << " > " <<
                         module_.cv_record.data_size;
@@ -2215,8 +2278,9 @@ const uint8_t* MinidumpModule::GetCVRecord(uint32_t* size) {
         return NULL;
       }
     } else if (signature == MD_CVINFOPDB20_SIGNATURE) {
-      // Now that the structure type is known, recheck the size.
-      if (MDCVInfoPDB20_minsize > module_.cv_record.data_size) {
+      // Now that the structure type is known, recheck the size,
+      // ensuring at least one byte for the null terminator.
+      if (MDCVInfoPDB20_minsize + 1 > module_.cv_record.data_size) {
         BPLOG(ERROR) << "MinidumpModule CodeView2 record size mismatch, " <<
                         MDCVInfoPDB20_minsize << " > " <<
                         module_.cv_record.data_size;
@@ -4690,14 +4754,16 @@ uint32_t Minidump::max_streams_ = 128;
 unsigned int Minidump::max_string_length_ = 1024;
 
 
-Minidump::Minidump(const string& path)
+Minidump::Minidump(const string& path, bool hexdump, unsigned int hexdump_width)
     : header_(),
       directory_(NULL),
       stream_map_(new MinidumpStreamMap()),
       path_(path),
       stream_(NULL),
       swap_(false),
-      valid_(false) {
+      valid_(false),
+      hexdump_(hexdump),
+      hexdump_width_(hexdump_width) {
 }
 
 Minidump::Minidump(istream& stream)
@@ -4707,7 +4773,9 @@ Minidump::Minidump(istream& stream)
       path_(),
       stream_(&stream),
       swap_(false),
-      valid_(false) {
+      valid_(false),
+      hexdump_(false),
+      hexdump_width_(0) {
 }
 
 Minidump::~Minidump() {

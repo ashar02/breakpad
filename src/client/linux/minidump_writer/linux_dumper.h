@@ -99,6 +99,13 @@ class LinuxDumper {
   // Returns true on success. One must have called |ThreadsSuspend| first.
   virtual bool GetThreadInfoByIndex(size_t index, ThreadInfo* info) = 0;
 
+  size_t GetMainThreadIndex() const {
+    for (size_t i = 0; i < threads_.size(); ++i) {
+      if (threads_[i] == pid_) return i;
+    }
+    return -1u;
+  }
+
   // These are only valid after a call to |Init|.
   const wasteful_vector<pid_t> &threads() { return threads_; }
   const wasteful_vector<MappingInfo*> &mappings() { return mappings_; }
@@ -115,6 +122,19 @@ class LinuxDumper {
   //   stack_len: (output) the length of the memory area
   //   stack_top: the current top of the stack
   bool GetStackInfo(const void** stack, size_t* stack_len, uintptr_t stack_top);
+
+  // Sanitize a copy of the stack by overwriting words that are not
+  // pointers with a sentinel (0x0defaced).
+  //   stack_copy: a copy of the stack to sanitize. |stack_copy| might
+  //               not be word aligned, but it represents word aligned
+  //               data copied from another location.
+  //   stack_len: the length of the allocation pointed to by |stack_copy|.
+  //   stack_pointer: the address of the stack pointer (used to locate
+  //                  the stack mapping, as an optimization).
+  //   sp_offset: the offset relative to stack_copy that reflects the
+  //              current value of the stack pointer.
+  void SanitizeStackCopy(uint8_t* stack_copy, size_t stack_len,
+                         uintptr_t stack_pointer, uintptr_t sp_offset);
 
   // Test whether |stack_copy| contains a pointer-aligned word that
   // could be an address within a given mapping.
