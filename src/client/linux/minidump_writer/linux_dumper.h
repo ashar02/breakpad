@@ -50,7 +50,7 @@
 #include "client/linux/dump_writer_common/mapping_info.h"
 #include "client/linux/dump_writer_common/thread_info.h"
 #include "common/linux/file_id.h"
-#include "common/memory.h"
+#include "common/memory_allocator.h"
 #include "google_breakpad/common/minidump_format.h"
 
 namespace google_breakpad {
@@ -177,6 +177,7 @@ class LinuxDumper {
 
   int crash_signal() const { return crash_signal_; }
   void set_crash_signal(int crash_signal) { crash_signal_ = crash_signal; }
+  const char* GetCrashSignalString() const;
 
   pid_t crash_thread() const { return crash_thread_; }
   void set_crash_thread(pid_t crash_thread) { crash_thread_ = crash_thread; }

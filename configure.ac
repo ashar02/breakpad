@@ -72,7 +72,8 @@ AC_ARG_ENABLE(m32,
 AC_HEADER_STDC
 AC_SYS_LARGEFILE
 AX_PTHREAD
-AC_CHECK_HEADERS([a.out.h])
+AC_CHECK_HEADERS([a.out.h sys/random.h])
+AC_CHECK_FUNCS([arc4random getrandom])
 
 AX_CXX_COMPILE_STDCXX(11, noext, mandatory)
 
@@ -99,6 +100,10 @@ AX_APPEND_COMPILE_FLAGS(m4_flatten([
 AS_VAR_APPEND([WARN_CXXFLAGS], " -Werror")
 AC_LANG_POP([C++])
 AC_SUBST([WARN_CXXFLAGS])
+
+dnl Test support for O_CLOEXEC
+AX_CHECK_DEFINE([fcntl.h], [O_CLOEXEC], [],
+                [AC_DEFINE([O_CLOEXEC], [0], [Fallback definition for old systems])])
 
 # Only build Linux client libs when compiling for Linux
 case $host in
